@@ -1,6 +1,6 @@
 // Home.vue
 <template>
-  <div class="main-content">
+  <div class="home-container">
     <div class="home">
       <div class="content">
         <h1>Schedule a<br>class now.</h1>
@@ -26,6 +26,55 @@ export default {
 </script>
 
 <style scoped>
+.home-container {
+  flex: 1;
+  overflow-y: auto;
+  background-color: white;
+  width: 100%;
+}
+
+.home {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 72px); /* Adjust for topbar height */
+}
+
+.content {
+  flex: 1;
+  max-width: 600px;
+}
+
+.content h1 {
+  font-size: 3.5rem;
+  font-weight: bold;
+  color: #DD385A;
+  margin-bottom: 1.5rem;
+  line-height: 1.2;
+}
+
+.content p {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.illustration {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.landing-image {
+  max-width: 100%;
+  height: auto;
+}
+
 .nav-link.router-link-active {
   color: #DD385A;
   font-weight: 500;

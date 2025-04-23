@@ -4,13 +4,16 @@ from typing import List, Optional
 import pymysql
 from datetime import datetime
 from sqlalchemy.orm import Session
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Import from main app - update to absolute imports
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from main import get_db_connection, User, get_password_hash, verify_password
-from routes.auth import send_approval_email  # Import the email sending function
+from routes.auth import send_approval_email  # Import only the approval email function
 
 router = APIRouter(tags=["users"])
 
@@ -916,10 +919,21 @@ async def reject_user(
             detail="User not found"
         )
     
+    # Store user info for email notification before deletion
+    user_email = user["email"]
+    user_name = user["full_name"]
+    user_role = user["role"]
+    
     # Delete the user from the database
     try:
         with conn.cursor() as cursor:
-            # Log the rejection event
+            # First delete the user
+            cursor.execute(
+                "DELETE FROM users WHERE id = %s",
+                (user_id,)
+            )
+            
+            # Then log the rejection event (after user is deleted to avoid FK constraint)
             client_ip = request.client.host if request.client else "unknown"
             cursor.execute(
                 """
@@ -927,20 +941,22 @@ async def reject_user(
                 VALUES (%s, %s, %s, %s)
                 """,
                 (
-                    "system",
+                    None,  # Using NULL instead of "system" to avoid FK constraint
                     "REJECTION",
-                    f"Rejected and deleted user: {user_id}", 
+                    f"Rejected and deleted user: {user_id} ({user_name})", 
                     client_ip
                 )
             )
             
-            # Delete the user
-            cursor.execute(
-                "DELETE FROM users WHERE id = %s",
-                (user_id,)
-            )
-            
         conn.commit()
+        
+        # Send rejection notification email (after DB transaction is committed)
+        try:
+            send_rejection_email(user_email, user_name, user_role)
+        except Exception as e:
+            # Log the error but don't fail the whole request if email sending fails
+            print(f"Warning: Failed to send rejection email: {str(e)}")
+            
         return {"message": f"User {user_id} has been rejected and removed from the system"}
     
     except Exception as e:
@@ -949,6 +965,81 @@ async def reject_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reject user: {str(e)}"
         )
+
+def send_rejection_email(email, name, role):
+    """Helper function to send an account rejection notification email."""
+    # Using the same email configuration as in approval emails
+    smtp_server = "smtp.gmail.com"
+    smtp_port = "587"
+    smtp_username = "pierredosdos@gmail.com"
+    smtp_password = "bibb iylk bqkc grez"  # Using the same password as in the approval email function
+    
+    try:
+        # Create email message
+        message = MIMEMultipart("alternative")
+        message["Subject"] = "Your Account Application Status"
+        message["From"] = smtp_username
+        message["To"] = email
+        
+        # Plain text version
+        text = f"""
+Hello {name},
+
+We regret to inform you that your application for a {role} account in the UIC Lab Class Scheduler has been rejected.
+
+If you believe this is an error or would like to discuss this further, please contact the system administrator.
+
+Best regards,
+The UIC Lab Class Scheduler Team
+"""
+        
+        # HTML version
+        html = f"""
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #DD385A; color: white; padding: 10px 20px; text-align: center; }}
+        .content {{ padding: 20px; }}
+        .footer {{ margin-top: 30px; font-size: 12px; color: #777; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Account Application Status</h2>
+        </div>
+        <div class="content">
+            <p>Hello {name},</p>
+            <p>We regret to inform you that your application for a <strong>{role}</strong> account in the UIC Lab Class Scheduler has been rejected.</p>
+            <p>If you believe this is an error or would like to discuss this further, please contact the system administrator.</p>
+            <div class="footer">
+                <p>Best regards,<br>The UIC Lab Class Scheduler Team</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        # Attach parts
+        part1 = MIMEText(text, "plain")
+        part2 = MIMEText(html, "html")
+        message.attach(part1)
+        message.attach(part2)
+        
+        # Send email
+        with smtplib.SMTP(smtp_server, int(smtp_port)) as server:
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.sendmail(smtp_username, email, message.as_string())
+        
+        print(f"Account rejection email sent to {email}")
+    except Exception as e:
+        print(f"Error sending rejection email: {str(e)}")
+        # Don't raise the exception here, just log it
+        # This ensures the rejection process continues even if email sending fails
 
 # Special endpoint to directly fix a user
 @router.get("/fix-user/{user_id}")

@@ -18,75 +18,82 @@
       </div>
 
       <div class="signup-form">
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input 
-            type="email" 
-            id="email" 
-            placeholder="Enter your email"
-            v-model="email"
-          >
+        <div class="form-group-container">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input 
+              type="email" 
+              id="email" 
+              placeholder="Enter your email"
+              v-model="email"
+              @blur="validateEmail"
+              :class="{ 'input-error': emailError }"
+            >
+            <span v-if="emailError" class="field-error">{{ emailError }}</span>
+          </div>
+
+          <div class="form-group">
+            <label for="id">ID</label>
+            <input 
+              type="text" 
+              id="id" 
+              placeholder="Enter your ID"
+              v-model="id"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input 
+              type="text" 
+              id="fullName" 
+              placeholder="Enter your full name"
+              v-model="fullName"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="role">Role</label>
+            <select id="role" v-model="selectedRole">
+              <option value="" disabled selected>Select your role</option>
+              <option value="Student">Student</option>
+              <option value="Academic Coordinator">Academic Coordinator</option>
+              <option value="Lab InCharge">Lab InCharge</option>
+              <option value="Faculty/Staff">Faculty/Staff</option>
+              <option value="Dean">Dean</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input 
+              type="password" 
+              id="password" 
+              placeholder="Enter your password"
+              v-model="password"
+            >
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="id">ID</label>
-          <input 
-            type="text" 
-            id="id" 
-            placeholder="Enter your ID"
-            v-model="id"
-          >
+        <div class="buttons-container">
+          <button class="signup-button" @click="signup" :disabled="isLoading">
+            {{ isLoading ? 'Signing up...' : 'Sign Up' }}
+          </button>
+
+          <div class="divider">
+            <span>or</span>
+          </div>
+
+          <button class="google-button">
+            <img src="../assets/Google-logo.svg" alt="Google" class="google-icon">
+            Sign up with Google
+          </button>
+
+          <p class="login-link">
+            Already have an account? 
+            <router-link to="/login">Sign In</router-link>
+          </p>
         </div>
-
-        <div class="form-group">
-          <label for="fullName">Full Name</label>
-          <input 
-            type="text" 
-            id="fullName" 
-            placeholder="Enter your full name"
-            v-model="fullName"
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="role">Role</label>
-          <select id="role" v-model="selectedRole">
-            <option value="" disabled selected>Select your role</option>
-            <option value="Student">Student</option>
-            <option value="Academic Coordinator">Academic Coordinator</option>
-            <option value="Lab InCharge">Lab InCharge</option>
-            <option value="Faculty/Staff">Faculty/Staff</option>
-            <option value="Dean">Dean</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input 
-            type="password" 
-            id="password" 
-            placeholder="Enter your password"
-            v-model="password"
-          >
-        </div>
-
-        <button class="signup-button" @click="signup" :disabled="isLoading">
-          {{ isLoading ? 'Signing up...' : 'Sign Up' }}
-        </button>
-
-        <div class="divider">
-          <span>or</span>
-        </div>
-
-        <button class="google-button">
-          <img src="../assets/Google-logo.svg" alt="Google" class="google-icon">
-          Sign up with Google
-        </button>
-
-        <p class="login-link">
-          Already have an account? 
-          <router-link to="/login">Sign In</router-link>
-        </p>
       </div>
     </div>
   </div>
@@ -103,13 +110,21 @@ export default {
       fullName: '',
       password: '',
       isLoading: false,
-      errorMessage: null
+      errorMessage: null,
+      emailError: null
     }
   },
   methods: {
     async signup() {
       // Reset error message
       this.errorMessage = null;
+      
+      // Validate email domain
+      this.validateEmail();
+      if (this.emailError) {
+        this.errorMessage = 'Only UIC email is valid';
+        return;
+      }
       
       // Validate that all fields are filled
       if (!this.email || !this.id || !this.fullName || !this.selectedRole || !this.password) {
@@ -159,6 +174,25 @@ export default {
       } finally {
         this.isLoading = false;
       }
+    },
+    validateEmail() {
+      // Clear previous error
+      this.emailError = null;
+      
+      // Skip validation if email is empty (will be caught by general validation)
+      if (!this.email) return;
+      
+      // Check if it has @ symbol
+      if (this.email.indexOf('@') === -1) {
+        this.emailError = 'Please enter a valid email address';
+        return;
+      }
+      
+      // Extract domain and validate
+      const domain = this.email.split('@')[1];
+      if (domain !== 'uic.edu.ph') {
+        this.emailError = 'Only UIC email is valid';
+      }
     }
   }
 }
@@ -169,7 +203,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 93vh;
+  min-height: 90vh;
   background-color: #f5f5f5;
   padding: 1rem;
 }
@@ -180,19 +214,21 @@ export default {
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 360px;
+  max-width: 480px;
   position: relative;
+  overflow-y: auto;
+  max-height: 90vh;
 }
 
 .logo-section {
   display: flex;
   justify-content: center;
   gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .logo {
-  height: 50px;
+  height: 45px;
   width: auto;
 }
 
@@ -208,20 +244,26 @@ export default {
 h1 {
   text-align: center;
   color: #DD385A;
-  font-size: 1.8rem;
-  margin-bottom: 1.5rem;
+  font-size: 1.7rem;
+  margin-bottom: 1rem;
 }
 
 .signup-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.8rem;
+}
+
+.form-group-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.2rem;
 }
 
 label {
@@ -230,7 +272,7 @@ label {
 }
 
 input {
-  padding: 0.7rem;
+  padding: 0.6rem;
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 0.9rem;
@@ -243,7 +285,7 @@ input:focus {
 }
 
 select {
-  padding: 0.7rem;
+  padding: 0.6rem;
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 0.9rem;
@@ -257,11 +299,17 @@ select:focus {
   border-color: #DD385A;
 }
 
+.buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
 .signup-button {
   background-color: #DD385A;
   color: white;
   border: none;
-  padding: 0.75rem;
+  padding: 0.7rem;
   border-radius: 8px;
   font-size: 1rem;
   cursor: pointer;
@@ -349,5 +397,39 @@ select:focus {
 .signup-button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+.input-error {
+  border-color: #e74c3c;
+}
+
+.field-error {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+/* Media query styling for larger screens */
+@media (min-width: 768px) {
+  .signup-card {
+    max-width: 620px;
+    padding: 2rem 2.5rem;
+  }
+  
+  .form-group-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .form-group {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 200px;
+  }
+  
+  /* Full width items */
+  .buttons-container {
+    width: 100%;
+  }
 }
 </style>

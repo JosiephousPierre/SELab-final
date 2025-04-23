@@ -3,7 +3,7 @@
   <div class="app-container">
     <template v-if="!isDashboardRoute">
       <Sidebar />
-      <div class="main-content">
+      <div class="main-content standard-page">
         <Topbar />
         <router-view />
       </div>
@@ -117,6 +117,7 @@ html, body {
   display: flex;
   overflow: hidden;
   background-color: #f5f5f5;
+  position: relative;
 }
 
 .main-content {
@@ -125,7 +126,12 @@ html, body {
   flex-direction: column;
   overflow: hidden;
   min-width: 0; /* Prevent flex item from overflowing */
-  background-color: #f5f5f5;
+  background-color: white;
+}
+
+.main-content.standard-page {
+  width: calc(100vw - 80px); /* Full width minus sidebar */
+  margin-left: 80px; /* Match the sidebar width */
 }
 
 /* Dashboard routes specific styles */

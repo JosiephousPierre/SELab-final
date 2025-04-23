@@ -40,6 +40,7 @@
         <div class="nav-link" @click="toggleUsersDropdown">
           <div class="icon-container">
             <i class="fas fa-users"></i>
+            <span v-if="pendingAccountsCount > 0" class="notification-badge">{{ pendingAccountsCount }}</span>
           </div>
           <span v-show="isExpanded">Users</span>
           <i v-show="isExpanded" class="pi pi-angle-right dropdown-icon" :class="{ rotated: isUsersDropdownOpen }"></i>
@@ -50,6 +51,7 @@
           </router-link>
           <router-link to="/account-management-sysad" class="dropdown-item" :class="{ active: $route.path === '/account-management-sysad' }">
             <span>Account Management</span>
+            <span v-if="pendingAccountsCount > 0" class="pending-badge">{{ pendingAccountsCount }}</span>
           </router-link>
         </div>
       </div>
@@ -66,6 +68,7 @@
 
 <script>
 import NotificationService from '../services/NotificationService'
+import AccountService from '../services/AccountService'
 
 export default {
   name: 'DashBoardSidebarSysAd',
@@ -74,7 +77,8 @@ export default {
       isExpanded: false,
       isScheduleDropdownOpen: false,
       isUsersDropdownOpen: false,
-      unreadCount: 0
+      unreadCount: 0,
+      pendingAccountsCount: 0
     }
   },
   computed: {
@@ -142,24 +146,40 @@ export default {
       } catch (error) {
         console.error('Error fetching unread notifications count:', error);
       }
+    },
+    async fetchPendingAccountsCount() {
+      try {
+        this.pendingAccountsCount = await AccountService.getPendingAccountsCount();
+      } catch (error) {
+        console.error('Error fetching pending accounts count:', error);
+      }
     }
   },
   created() {
     this.checkAuth();
     this.fetchUnreadCount();
+    this.fetchPendingAccountsCount();
 
     // Set up interval to periodically check for new notifications (every 30 seconds)
     this.notificationTimer = setInterval(() => {
       this.fetchUnreadCount();
-    }, 1000);
+    }, 30000);
+    
+    // Set up a faster polling for pending accounts (every 3 seconds)
+    this.pendingAccountsTimer = setInterval(() => {
+      this.fetchPendingAccountsCount();
+    }, 3000);
   },
   mounted() {
     this.checkAuth();
   },
   beforeUnmount() {
-    // Clear the interval when component is destroyed
+    // Clear the intervals when component is destroyed
     if (this.notificationTimer) {
       clearInterval(this.notificationTimer);
+    }
+    if (this.pendingAccountsTimer) {
+      clearInterval(this.pendingAccountsTimer);
     }
   }
 }
@@ -313,5 +333,20 @@ export default {
   background-color: rgba(255, 255, 255, 0.1);
   color: white;
   border-left-color: white;
+}
+
+.pending-badge {
+  background-color: #478aff;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  margin-left: 8px;
 }
 </style>

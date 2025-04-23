@@ -1,6 +1,6 @@
 // Features.vue
 <template>
-  <div class="main-content">
+  <div class="features-container">
     <div class="features">
       <div class="content-wrapper">
         <div class="features-grid">
@@ -94,10 +94,11 @@ export default {
 </script>
 
 <style scoped>
-.main-content {
-  height: 100vh;
+.features-container {
+  flex: 1;
   overflow-y: auto;
   background-color: white;
+  width: 100%;
 }
 
 .features {

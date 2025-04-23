@@ -1,6 +1,6 @@
 // About.vue
 <template>
-  <div class="main-content">
+  <div class="about-container">
     <div class="about">
       <div class="content-section">
         <h1>What is the Computer Laboratory Scheduling System?</h1>
@@ -45,6 +45,13 @@ export default {
 </script>
 
 <style scoped>
+.about-container {
+  flex: 1;
+  overflow-y: auto;
+  background-color: white;
+  width: 100%;
+}
+
 .about {
   display: flex;
   justify-content: space-between;

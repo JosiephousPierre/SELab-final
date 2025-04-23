@@ -279,6 +279,11 @@ export default {
           return;
         }
         
+        // Confirm before rejection
+        if (!confirm(`Are you sure you want to reject ${account.full_name}'s account application? This action cannot be undone.`)) {
+          return;
+        }
+        
         // Make API call to reject the account
         const response = await fetch(`http://localhost:8000/api/users/${account.id}/reject`, {
           method: 'DELETE',
@@ -297,10 +302,10 @@ export default {
         this.pendingAccounts = this.pendingAccounts.filter(a => a.id !== account.id);
         
         // Show notification
-        alert(`Account for ${account.full_name} has been rejected.`);
+        alert(`Account for ${account.full_name} has been rejected. A notification email has been sent.`);
       } catch (error) {
-        alert(`Error: ${error.message}`);
         console.error('Error rejecting account:', error);
+        alert(`Error rejecting account: ${error.message}`);
       }
     },
     getPermissionsByRole(role) {
