@@ -6,11 +6,11 @@
     </div>
 
     <nav class="nav-links">
-      <router-link to="/dashboard-viewer" class="nav-link" :class="{ active: $route.path === '/dashboard-viewer' }">
+      <router-link to="/schedule-viewer" class="nav-link" :class="{ active: $route.path === '/schedule-viewer' || $route.path === '/dashboard-viewer' }">
         <div class="icon-container">
           <i class="fas fa-home"></i>
         </div>
-        <span v-show="isExpanded">Dashboard</span>
+        <span v-show="isExpanded">My Schedule</span>
       </router-link>
 
       <router-link to="/notifications-viewer" class="nav-link" :class="{ active: $route.path === '/notifications-viewer' }">
@@ -19,13 +19,6 @@
           <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
         </div>
         <span v-show="isExpanded">Notifications</span>
-      </router-link>
-
-      <router-link to="/schedule-viewer" class="nav-link" :class="{ active: $route.path === '/schedule-viewer' }">
-        <div class="icon-container">
-          <i class="fas fa-calendar"></i>
-        </div>
-        <span v-show="isExpanded">Schedule</span>
       </router-link>
 
       <router-link to="/user-profile-viewer" class="nav-link" :class="{ active: $route.path === '/user-profile-viewer' }">

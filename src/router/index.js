@@ -81,7 +81,7 @@ const routes = [
   {
     path: '/dashboard-viewer',
     name: 'DashboardViewer',
-    component: () => import('../views/Viewer/DashboardViewer.vue'),
+    redirect: '/schedule-viewer',
     meta: { requiresAuth: true, role: ['Faculty/Staff', 'Student', 'Dean'] }
   },
   {

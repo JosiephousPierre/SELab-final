@@ -144,7 +144,7 @@ def create_notification(
         return None
 
 # Create a notification when a schedule is approved
-def create_schedule_approval_notification(conn, semester_id, created_by=None, schedule_id=None, was_already_current_display_semester=None):
+def create_schedule_approval_notification(conn, semester_id, created_by=None, schedule_id=None, was_already_current_display_semester=None, is_bulk_approval=False):
     """
     Create a notification when a schedule is approved for a semester
     
@@ -155,9 +155,10 @@ def create_schedule_approval_notification(conn, semester_id, created_by=None, sc
         schedule_id: ID of the schedule being approved (optional)
         was_already_current_display_semester: Boolean flag indicating if this was already the display semester
                                              (passed from the schedule approval route)
+        is_bulk_approval: Boolean flag indicating if this is part of a bulk approval process
     """
     try:
-        print(f"Creating schedule approval notification: semester_id={semester_id}, created_by={created_by}, schedule_id={schedule_id}, was_already_current_display_semester={was_already_current_display_semester}")
+        print(f"Creating schedule approval notification: semester_id={semester_id}, created_by={created_by}, schedule_id={schedule_id}, was_already_current_display_semester={was_already_current_display_semester}, is_bulk_approval={is_bulk_approval}")
         with conn.cursor() as cursor:
             # Get semester name
             cursor.execute("SELECT name FROM semesters WHERE id = %s", (semester_id,))
@@ -229,13 +230,31 @@ def create_schedule_approval_notification(conn, semester_id, created_by=None, sc
             print(f"DEBUG: Found {approved_count} other approved schedules for this semester")
             
             # Print variables for debugging
-            print(f"DEBUG: Decision variables: is_current_display_semester={is_current_display_semester}, course_code={course_code}, section={section}, approved_count={approved_count}")
+            print(f"DEBUG: Decision variables: is_current_display_semester={is_current_display_semester}, course_code={course_code}, section={section}, approved_count={approved_count}, is_bulk_approval={is_bulk_approval}")
             
-            # Choose message and title based on context
-            # FIX: Reorganize the logic to handle each case more cleanly
-            
+            # For bulk approvals of a new semester, we only want to send "Schedule Posted"
+            if is_bulk_approval and not is_current_display_semester:
+                print("DEBUG: BULK APPROVAL PATH - Sending only Schedule Posted notification")
+                message = f"The schedule for {semester_name} is posted"
+                title = "Schedule Posted"
+                
+                # Check for duplicate "Schedule Posted" notifications for this semester
+                cursor.execute(
+                    """
+                    SELECT id FROM notifications 
+                    WHERE title = 'Schedule Posted'
+                    AND message = %s
+                    AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+                    LIMIT 1
+                    """,
+                    (message,)
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    print(f"Found existing 'Schedule Posted' notification for {semester_name}. Skipping duplicate.")
+                    return existing['id']
             # CASE 1: First schedule in a semester (Schedule Posted)
-            if approved_count == 0:
+            elif approved_count == 0:
                 print("DEBUG: PATH 1 - First schedule in semester (posted message)")
                 message = f"The schedule for {semester_name} is posted"
                 title = "Schedule Posted"

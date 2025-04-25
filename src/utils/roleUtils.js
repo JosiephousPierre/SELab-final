@@ -18,7 +18,7 @@ export function getDashboardPathForRole(role) {
     case 'Faculty/Staff':
     case 'Student':
     default:
-      return '/dashboard-viewer';
+      return '/schedule-viewer';
   }
 }
 

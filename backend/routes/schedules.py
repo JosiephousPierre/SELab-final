@@ -663,11 +663,10 @@ async def update_schedule_status(
                     print(f"Error creating schedule pending notification: {notif_error}")
                     # Continue even if notification creation fails
             
-            # If the status is being changed to 'approved', update the system settings
+            # If setting status to approved, update system settings
             if status_update.status == 'approved':
-                # Update the current_display_semester_id in system_settings to this semester's ID
                 try:
-                    # First check if the setting exists and if this semester is already the current display semester
+                    # Check if this semester is already the current display semester
                     cursor.execute(
                         "SELECT setting_value FROM system_settings WHERE setting_key = 'current_display_semester_id'"
                     )
@@ -675,39 +674,54 @@ async def update_schedule_status(
                     was_already_current_display_semester = False
                     
                     if setting_row and setting_row['setting_value'] == str(semester_id):
-                        print(f"Semester {semester_id} is already set as current_display_semester_id")
                         was_already_current_display_semester = True
-                    
-                    # Check if the setting exists
-                    cursor.execute(
-                        "SELECT COUNT(*) as count FROM system_settings WHERE setting_key = 'current_display_semester_id'"
-                    )
-                    setting_exists = cursor.fetchone()['count'] > 0
-                    
-                    if setting_exists:
-                        # Update existing setting
-                        cursor.execute(
-                            """
-                            UPDATE system_settings 
-                            SET setting_value = %s, updated_at = NOW()
-                            WHERE setting_key = 'current_display_semester_id'
-                            """,
-                            (str(semester_id),)
-                        )
+                        print(f"Semester {semester_id} is already set as current_display_semester_id")
                     else:
-                        # Insert new setting
+                        # Update system settings if this is not already the current display semester
+                        # Check if the setting exists
                         cursor.execute(
-                            """
-                            INSERT INTO system_settings 
-                            (setting_key, setting_value, description)
-                            VALUES ('current_display_semester_id', %s, 'ID of the semester that should be displayed in all dashboards')
-                            """,
-                            (str(semester_id),)
+                            "SELECT COUNT(*) as count FROM system_settings WHERE setting_key = 'current_display_semester_id'"
                         )
-                    
-                    # Ensure changes are committed
-                    conn.commit()
-                    print(f"Updated current_display_semester_id to {semester_id} after approving schedule {schedule_id}")
+                        setting_exists = cursor.fetchone()['count'] > 0
+                        
+                        if setting_exists:
+                            # Update existing setting
+                            cursor.execute(
+                                """
+                                UPDATE system_settings 
+                                SET setting_value = %s, updated_at = NOW()
+                                WHERE setting_key = 'current_display_semester_id'
+                                """,
+                                (str(semester_id),)
+                            )
+                        else:
+                            # Insert new setting
+                            cursor.execute(
+                                """
+                                INSERT INTO system_settings 
+                                (setting_key, setting_value, description)
+                                VALUES ('current_display_semester_id', %s, 'ID of the semester that should be displayed in all dashboards')
+                                """,
+                                (str(semester_id),)
+                            )
+                        
+                        # Ensure changes are committed immediately to avoid race conditions
+                        conn.commit()
+                        print(f"Updated current_display_semester_id to {semester_id} after approving schedule {schedule_id}")
+                        
+                        # Small delay to ensure system settings are properly updated before notifications
+                        import time
+                        time.sleep(0.5)  # 500ms delay
+                        
+                        # Re-fetch to confirm the update
+                        cursor.execute(
+                            "SELECT setting_value FROM system_settings WHERE setting_key = 'current_display_semester_id'"
+                        )
+                        updated_setting = cursor.fetchone()
+                        if updated_setting and updated_setting['setting_value'] == str(semester_id):
+                            print("Confirmed system settings update was successful")
+                        else:
+                            print("Warning: System settings update may not have been applied")
                     
                     # Get the semester name to check if it's a Summer semester
                     cursor.execute("SELECT name FROM semesters WHERE id = %s", (semester_id,))
@@ -717,6 +731,8 @@ async def update_schedule_status(
                         print(f"Approved a Summer semester ({semester_data['name']}), checking to add next academic year semesters")
                         # Call the function to check and add next academic year semesters
                         check_and_add_next_academic_year_semesters(conn, semester_id, creator_user_id)
+                        # Ensure these changes are committed too
+                        conn.commit()
                     
                     # Create a notification about the approved schedule
                     try:
@@ -727,13 +743,36 @@ async def update_schedule_status(
                         )
                         approved_count = cursor.fetchone()['count']
                         
+                        # Check if this is part of a bulk approval by seeing if other schedules for this semester
+                        # were approved in the last 10 seconds
+                        cursor.execute(
+                            """
+                            SELECT COUNT(*) as count FROM schedules 
+                            WHERE semester_id = %s AND status = 'approved' AND id != %s
+                            AND updated_at > DATE_SUB(NOW(), INTERVAL 10 SECOND)
+                            """,
+                            (semester_id, schedule_id)
+                        )
+                        recent_approvals = cursor.fetchone()['count']
+                        is_part_of_bulk = recent_approvals > 0
+                        
+                        # Recheck the current display semester one more time to be extra sure
+                        cursor.execute(
+                            "SELECT setting_value FROM system_settings WHERE setting_key = 'current_display_semester_id'"
+                        )
+                        latest_setting = cursor.fetchone()
+                        if latest_setting and latest_setting['setting_value'] == str(semester_id):
+                            was_already_current_display_semester = True
+                            print("Final check: This is now the current display semester")
+                        
                         # Use the actual creator of the schedule for the notification
                         notification_id = create_schedule_approval_notification(
                             conn=conn,
                             semester_id=semester_id,
                             created_by=creator_user_id,
                             schedule_id=schedule_id,
-                            was_already_current_display_semester=was_already_current_display_semester
+                            was_already_current_display_semester=was_already_current_display_semester,
+                            is_bulk_approval=is_part_of_bulk
                         )
                         print(f"Created schedule approval notification with ID: {notification_id}")
                     except Exception as notif_error:
@@ -1263,18 +1302,8 @@ async def update_multiple_schedules_status(
                     
                     if setting_row and setting_row['setting_value'] == str(semester_id):
                         was_already_current_display_semester = True
-                        
-                    # Create a notification about the approved schedules
-                    notification_id = create_schedule_approval_notification(
-                        conn=conn,
-                        semester_id=semester_id,
-                        created_by=user_id,
-                        was_already_current_display_semester=was_already_current_display_semester
-                    )
-                    print(f"Created bulk schedule approval notification with ID: {notification_id}")
-                    
-                    # Update system settings if needed
-                    if not was_already_current_display_semester:
+                        print(f"Semester {semester_id} is already set as current_display_semester_id")
+                    else:
                         # Set this as the current display semester
                         if setting_row:
                             # Update existing setting
@@ -1296,6 +1325,44 @@ async def update_multiple_schedules_status(
                                 """,
                                 (str(semester_id),)
                             )
+                            
+                        # Commit changes to ensure system settings are updated
+                        conn.commit()
+                        print(f"Updated current_display_semester_id to {semester_id} in bulk approval")
+                        
+                        # Small delay to ensure system settings are properly updated before notifications
+                        import time
+                        time.sleep(0.5)  # 500ms delay
+                        
+                        # Re-fetch to confirm the update
+                        cursor.execute(
+                            "SELECT setting_value FROM system_settings WHERE setting_key = 'current_display_semester_id'"
+                        )
+                        updated_setting = cursor.fetchone()
+                        if updated_setting and updated_setting['setting_value'] == str(semester_id):
+                            print("Confirmed system settings update was successful for bulk approval")
+                        else:
+                            print("Warning: System settings update may not have been applied for bulk approval")
+                            
+                    # Recheck the current display semester one more time to be extra sure
+                    cursor.execute(
+                        "SELECT setting_value FROM system_settings WHERE setting_key = 'current_display_semester_id'"
+                    )
+                    latest_setting = cursor.fetchone()
+                    if latest_setting and latest_setting['setting_value'] == str(semester_id):
+                        was_already_current_display_semester = True
+                        print("Final check: This semester is now the current display semester")
+                        
+                    # Create a notification about the approved schedules
+                    notification_id = create_schedule_approval_notification(
+                        conn=conn,
+                        semester_id=semester_id,
+                        created_by=user_id,
+                        was_already_current_display_semester=was_already_current_display_semester,
+                        is_bulk_approval=True
+                    )
+                    print(f"Created bulk schedule approval notification with ID: {notification_id}")
+                    
                 except Exception as notif_error:
                     print(f"Error handling bulk approval notification: {notif_error}")
                     # Continue even if notification creation fails
